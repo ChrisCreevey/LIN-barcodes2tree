@@ -23,11 +23,26 @@ void cluster_barcode(char **barcode_array, char **seq_names);
 
 int main(int argc, char *argv[]){
 	int i, k;
-	char **seq_names = NULL, **barcode_array = NULL, string[STRINGLEN], c , *token, outfilename[1000];
+	char **seq_names = NULL, **barcode_array = NULL, string[BIGSTRING], c , *token, outfilename[1000];
 	FILE *inputfile = NULL, *outputfile = NULL;
+
+   if(argc < 2)
+        {
+        printf("\nLIN-barcode2tree is designed to generate a phylogenetic tree based on the LIN coding provided. \
+        	\n\nUsage: LIN-barcode2tree <INFILE>\n\tWhere <INFILE> contains the Names and LIN barcodes in a tab-delimited format as in the example file `input_barcodes.txt` provided.\
+        	\n\tThe phylogenetic tree is outputted to a phylip-formatted tree filecalled <INFILE>.outtree.ph \
+        	\n\tPLEASE-NOTE: Ensure there are no \",\", \"(\" or \")\" characters in the names.\n\n");
+        exit(1);
+        }
+    
+
+
 
 	string[0] = '\0';
 	/*create matrices holding data */
+
+
+
 
 	barcode_array = malloc(NUMBARCODES*sizeof(char*));
 	seq_names = malloc(NUMBARCODES*sizeof(char*));
@@ -73,13 +88,33 @@ int main(int argc, char *argv[]){
 	/* cluser barcodes */
 	cluster_barcode(barcode_array, seq_names);
 
+	
+	/* There may be several remaining clusters that need to be finally clustered together */
+	string[0] = '\0'; i=0;
+	for(k=0; k<num_remaining_barcodes; k++) {
+		if(strcmp(seq_names[k], "") != 0) { /* if there is something in this array */
+			i++;
+			strcat(string, seq_names[k]);
+			strcat(string, ",");
+			barcode_array[k][0] = '\0';
+			seq_names[k][0] = '\0';
+		}
+	}
+	
+
 	outfilename[0]='\0';
 	strcpy(outfilename, argv[1]);
 	strcat(outfilename, ".outtree.ph");
 	outputfile = fopen(outfilename, "w");
+
 	/* print out clustered barcodes */
-	for(i=0; i<num_remaining_barcodes; i++) {
-		if(strcmp(seq_names[i], "") != 0 ) fprintf(outputfile, "%s;\n",seq_names[i]);
+	if(i>1) {
+		string[strlen(string)-1] = ')';
+		fprintf(outputfile, "(%s;\n",string);
+	}
+	else {
+		string[strlen(string)-1] = ';';
+		fprintf(outputfile, "%s\n",string);
 	}
 	fclose(outputfile);
 }
@@ -147,5 +182,7 @@ void cluster_barcode(char **barcode_array, char **seq_names){
 		}
 
 	}
+
+
 	
 }
