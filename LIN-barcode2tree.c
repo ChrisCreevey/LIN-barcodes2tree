@@ -12,18 +12,18 @@
 #define TEMP 2
 #endif
 
-#define BARCODELEN 14
 #define STRINGLEN 1000000
 #define	BIGSTRING 1000000
 
-int num_remaining_barcodes =0, NUMBARCODES = 0;
+int num_remaining_barcodes =0, NUMBARCODES = 0, BARCODELEN = 0;
+float *cutoffs = NULL;
 
 void cluster_barcode(char **barcode_array, char **seq_names);
 
 int main(int argc, char *argv[]){
 	int i, k;
-	char **seq_names = NULL, **barcode_array = NULL, string[BIGSTRING], c , *token, outfilename[1000];
-	FILE *inputfile = NULL, *outputfile = NULL;
+	char **seq_names = NULL, **barcode_array = NULL, string[BIGSTRING], c , *token, outfilename[1000], tmpstring[STRINGLEN];
+	FILE *inputfile = NULL, *outputfile = NULL, *cutoff_file = NULL;
 
    if(argc < 2)
         {
@@ -32,8 +32,7 @@ int main(int argc, char *argv[]){
         	\n\tThe phylogenetic tree is outputted to a phylip-formatted tree filecalled <INFILE>.outtree.ph \
         	\n\tPLEASE-NOTE: Ensure there are no \",\", \"(\" or \")\" characters in the names.\n\n");
         exit(1);
-        }
-    
+        }   
 
 
 
@@ -41,11 +40,45 @@ int main(int argc, char *argv[]){
 	/*create matrices holding data */
 
 	/* open the file containing the barcodes */
-	if((inputfile = fopen(argv[1], "r")) == NULL)   /* check to see if the file is there */
-	    {                          /* Open the input  file */
-	    fprintf(stderr, "Error: Cannot open file %s\n", argv[1]);
+	if((inputfile = fopen(argv[1], "r")) == NULL) {  /* check to see if the file is there */
+	                              /* Open the input  file */
+	    fprintf(stderr, "Error: Cannot open barcode file %s\n", argv[1]);
 	    exit(1);
-	    }
+	}
+	if(argc == 3){ /* second argument should be a file containing a list of %IDs representing the cut-offs for each number in the barcode */
+        			/* This should be of the format "0.30,0.50,0.60,0.70,0.80,0.90,0.95,0.97,0.98,0.985.0.99,0.999,0.9999,1.0" */
+		if((cutoff_file = fopen(argv[2], "r")) == NULL) {  /* check to see if the file is there */
+		                          /* Open the input  file */
+		    fprintf(stderr, "Error: Cannot open cut-offs file %s\n", argv[2]);
+		    exit(1);
+		}
+		/* read in in barcode-cutoffs */
+		/* first count how many barcodes there are */
+		BARCODELEN =1; /* start the count at 1 as there will always be 1 more barcode than the number of commas */
+		fscanf(cutoff_file, "%s\n", string);
+		for(i=0; i<strlen(string); i++){
+			if(string[i] == ',') BARCODELEN++;
+		}
+		/* now we knnow how barcode there are */
+		cutoffs = malloc(BARCODELEN*sizeof(float)); /* Create array to hold the cut-off information */
+		i=0;
+		 
+		
+		if((token = strtok(string, ",")) != NULL){  /* get first part of string (the name) */
+			i=1;
+			cutoffs[i]=1-atof(token);
+		}
+		while((token = strtok(NULL, ",")) != NULL){ /* get subsequent parts of string (the barcode) */
+			cutoffs[i]=1-atof(token);
+			i++;
+			 
+		}		
+
+     }
+     else BARCODELEN =14; /* If no file is provided containing distances, then the default number of categories is 14 */
+
+
+ 	string[0] = '\0';
 
 	/* do an initial scan through the file to count how many barcodes are in the file */
 	while(!feof(inputfile)) {
@@ -102,6 +135,7 @@ int main(int argc, char *argv[]){
 		if(strcmp(seq_names[k], "") != 0) { /* if there is something in this array */
 			i++;
 			strcat(string, seq_names[k]);
+
 			strcat(string, ",");
 			barcode_array[k][0] = '\0';
 			seq_names[k][0] = '\0';
@@ -140,7 +174,7 @@ void cluster_barcode(char **barcode_array, char **seq_names){
 	/* AT END OF OUTER LOOP CONCATENATE ALL REMAINING BARCODES IN MATRIX USING THE SAME APPROACH AS ABOVE, BUT WITH ADDITIONAL ";" AT END */
 	/* RETURN FINAL STRING OF CLUSTERED BARCODES */
 	int i=0, j=0, k=0, l=0, *identical= NULL, num_identical=0;
-	char string[BIGSTRING], rep_barcode[STRINGLEN];
+	char string[BIGSTRING], rep_barcode[STRINGLEN], tmpstring[STRINGLEN];
 
 	string[0] ='\0';
 	identical = malloc(NUMBARCODES*sizeof(int));
@@ -167,12 +201,19 @@ void cluster_barcode(char **barcode_array, char **seq_names){
 					if(identical[k] == 1) {
 						strcpy(rep_barcode, barcode_array[k]);
 						strcat(string, seq_names[k]);
+						if(cutoffs == NULL) strcat(string, ":1");  /* If we don;t know what the categories represent, then set all branch lengths as 1 */
+						else {
+							tmpstring[0] = '\0';
+							sprintf(tmpstring, ":%f", cutoffs[i]);
+							strcat(string, tmpstring);
+						}
 						strcat(string, ",");
 						barcode_array[k][0] = '\0';
 						seq_names[k][0] = '\0';
 					}
 				}
 				string[strlen(string)-1] = ')';
+
 				strcpy(barcode_array[num_remaining_barcodes], rep_barcode);
 				strcpy(seq_names[num_remaining_barcodes], string);
 				num_remaining_barcodes++;
