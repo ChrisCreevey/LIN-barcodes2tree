@@ -12,12 +12,11 @@
 #define TEMP 2
 #endif
 
-#define NUMBARCODES 1000
 #define BARCODELEN 14
 #define STRINGLEN 1000000
 #define	BIGSTRING 1000000
 
-int num_remaining_barcodes =0;
+int num_remaining_barcodes =0, NUMBARCODES = 0;
 
 void cluster_barcode(char **barcode_array, char **seq_names);
 
@@ -41,8 +40,19 @@ int main(int argc, char *argv[]){
 	string[0] = '\0';
 	/*create matrices holding data */
 
+	/* open the file containing the barcodes */
+	if((inputfile = fopen(argv[1], "r")) == NULL)   /* check to see if the file is there */
+	    {                          /* Open the input  file */
+	    fprintf(stderr, "Error: Cannot open file %s\n", argv[1]);
+	    exit(1);
+	    }
 
-
+	/* do an initial scan through the file to count how many barcodes are in the file */
+	while(!feof(inputfile)) {
+		if((c = getc(inputfile)) == '\n' || c == '\r') NUMBARCODES++;
+	}
+	NUMBARCODES = NUMBARCODES*2; /* we need twice the number of barcodes as there will be up to n-2 internal clusters if fully bifurcated */
+	rewind(inputfile);  /* reset file reader to beginning */
 
 	barcode_array = malloc(NUMBARCODES*sizeof(char*));
 	seq_names = malloc(NUMBARCODES*sizeof(char*));
@@ -53,11 +63,7 @@ int main(int argc, char *argv[]){
 		barcode_array[i][0] = seq_names[i][0] = '\0';
 	}
 
-	if((inputfile = fopen(argv[1], "r")) == NULL)   /* check to see if the file is there */
-	    {                          /* Open the fundamental tree file */
-	    fprintf(stderr, "Error: Cannot open list file %s\n", argv[1]);
-	    exit(1);
-	    }
+	
 
 	/* read in the barcode data */
 	/*inputfile = fopen("input_barcodes.txt", "r"); */
@@ -80,6 +86,7 @@ int main(int argc, char *argv[]){
 
 			/*if(!feof(inputfile)) printf("%s\t%s\n",seq_names[i], barcode_array[i]); */
 			if(i<NUMBARCODES) i++;
+			else printf("Warning: The number of barcodes is greater than the number of lines in the file \n\t Is there a problem iwith the input format?");
 		}
 	}
 	num_remaining_barcodes = i;
@@ -132,10 +139,11 @@ void cluster_barcode(char **barcode_array, char **seq_names){
 	/*** 		REMOVE LAST NUMBER FROM ALL REMAINING BARCODES AND START INNER LOOP AGAIN ***/
 	/* AT END OF OUTER LOOP CONCATENATE ALL REMAINING BARCODES IN MATRIX USING THE SAME APPROACH AS ABOVE, BUT WITH ADDITIONAL ";" AT END */
 	/* RETURN FINAL STRING OF CLUSTERED BARCODES */
-	int i=0, j=0, k=0, l=0, identical[NUMBARCODES], num_identical=0;
+	int i=0, j=0, k=0, l=0, *identical= NULL, num_identical=0;
 	char string[BIGSTRING], rep_barcode[STRINGLEN];
 
 	string[0] ='\0';
+	identical = malloc(NUMBARCODES*sizeof(int));
 
 	for(i=BARCODELEN-1; i>=0; i--) { /* LOOP FOR THE LENGTH OF THE BARCODE */
 
